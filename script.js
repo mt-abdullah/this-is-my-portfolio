@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const contactForm = document.getElementById('contactForm');
     const sections = document.querySelectorAll('section');
     const scrollLinks = document.querySelectorAll('a[href^="#"]');
+    const themeToggle = document.getElementById('theme-toggle');
+    const currentYearSpan = document.getElementById('current-year');
     
     // ========== Mobile Menu Functionality ==========
     function toggleMobileMenu() {
@@ -37,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (target) {
             window.scrollTo({
-                top: target.offsetTop - 70,
+                top: target.offsetTop - 70, // Adjust for fixed header height
                 behavior: 'smooth'
             });
         }
@@ -60,7 +62,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const sectionTop = section.offsetTop;
             const sectionHeight = section.clientHeight;
             
-            if (window.pageYOffset >= (sectionTop - 100)) {
+            // Adjust offset for fixed header
+            if (window.pageYOffset >= (sectionTop - 100)) { 
                 current = section.getAttribute('id');
             }
         });
@@ -88,7 +91,6 @@ document.addEventListener('DOMContentLoaded', function() {
         function type() {
             const currentElement = typingElements[currentIndex];
             const fullText = currentElement.dataset.text || currentElement.textContent;
-            currentElement.dataset.text = fullText;
             
             text = isDeleting 
                 ? fullText.substring(0, text.length - 1)
@@ -98,22 +100,28 @@ document.addEventListener('DOMContentLoaded', function() {
             currentElement.textContent = text;
             currentElement.style.opacity = '1';
             
+            // Position cursor dynamically
+            const textWidth = currentElement.offsetWidth;
+            cursor.style.left = `${15 + textWidth}px`; // 15px is the margin-left of .typewriter
+
             // Hide other elements
             typingElements.forEach((el, index) => {
-                el.style.opacity = index === currentIndex ? '1' : '0';
+                if (index !== currentIndex) {
+                    el.style.opacity = '0';
+                }
             });
             
             if (!isDeleting && text === fullText) {
                 typingSpeed = pauseBetween;
                 isDeleting = true;
-                cursor.style.animation = 'none';
+                cursor.style.animation = 'none'; // Stop blinking during pause
                 setTimeout(() => {
-                    cursor.style.animation = 'blink 1s infinite';
+                    cursor.style.animation = 'blink 1s infinite'; // Resume blinking
                 }, 10);
             } else if (isDeleting && text === '') {
                 isDeleting = false;
                 currentIndex = (currentIndex + 1) % typingElements.length;
-                typingSpeed = 500;
+                typingSpeed = 500; // Pause before typing next text
             }
             
             setTimeout(type, typingSpeed);
@@ -125,27 +133,28 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(type, 1000);
     }
 
-    // ========== Form Validation and Submission ==========
+    // ========== Form Validation and Submission (EmailJS) ==========
     function handleFormSubmit(e) {
         e.preventDefault();
         
-        const name = contactForm.querySelector('input[type="text"]');
-        const email = contactForm.querySelector('input[type="email"]');
-        const message = contactForm.querySelector('textarea');
+        const nameInput = contactForm.querySelector('input[name="user_name"]');
+        const emailInput = contactForm.querySelector('input[name="user_email"]');
+        const messageInput = contactForm.querySelector('textarea[name="message"]');
         
-        // Validation
-        if (!name.value || !email.value || !message.value) {
-            showAlert('Please fill in all required fields');
+        // Basic Validation
+        if (!nameInput.value.trim() || !emailInput.value.trim() || !messageInput.value.trim()) {
+            showAlert('Please fill in all required fields.', 'error');
             return;
         }
         
-        if (!/^\S+@\S+\.\S+$/.test(email.value)) {
-            showAlert('Please enter a valid email address');
+        if (!/^\S+@\S+\.\S+$/.test(emailInput.value.trim())) {
+            showAlert('Please enter a valid email address.', 'error');
             return;
         }
         
-        // Form submission with EmailJS
-        emailjs.sendForm('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', contactForm)
+        // EmailJS integration
+        // Replace 'YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID' with your actual EmailJS IDs
+        emailjs.sendForm('service_YOUR_SERVICE_ID', 'template_YOUR_TEMPLATE_ID', contactForm)
             .then(() => {
                 showAlert('Thank you for your message! I will get back to you soon.', 'success');
                 contactForm.reset();
@@ -157,14 +166,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showAlert(message, type = 'error') {
+        const alertContainer = document.getElementById('alertContainer');
+        if (!alertContainer) {
+            console.error('Alert container not found!');
+            return;
+        }
+
+        // Remove existing alerts to prevent stacking
+        while (alertContainer.firstChild) {
+            alertContainer.removeChild(alertContainer.firstChild);
+        }
+
         const alertBox = document.createElement('div');
         alertBox.className = `alert ${type}`;
         alertBox.textContent = message;
-        document.body.appendChild(alertBox);
+        alertContainer.appendChild(alertBox);
         
         setTimeout(() => {
             alertBox.classList.add('fade-out');
-            setTimeout(() => alertBox.remove(), 500);
+            alertBox.addEventListener('transitionend', () => alertBox.remove(), { once: true });
         }, 3000);
     }
 
@@ -172,29 +192,29 @@ document.addEventListener('DOMContentLoaded', function() {
         contactForm.addEventListener('submit', handleFormSubmit);
     }
 
-    // ========== Scroll Animations ==========
-    function animateOnScroll() {
-        const elements = document.querySelectorAll('.skill-category, .timeline-item, .project-card');
-        const screenPosition = window.innerHeight / 1.2;
+    // ========== Scroll Animations (using Intersection Observer) ==========
+    function animateOnScrollObserver() {
+        const elements = document.querySelectorAll('.skill-card, .timeline-item, .project-card, .expertise-item, .education-item, .connection-card');
         
-        elements.forEach(element => {
-            const elementPosition = element.getBoundingClientRect().top;
-            
-            if (elementPosition < screenPosition) {
-                element.style.opacity = '1';
-                element.style.transform = 'translateY(0)';
-            }
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                    observer.unobserve(entry.target); // Stop observing once animated
+                }
+            });
+        }, {
+            rootMargin: '0px',
+            threshold: 0.1 // Trigger when 10% of the element is visible
         });
-    }
 
-    // Initialize animation states
-    function initAnimations() {
-        document.querySelectorAll('.skill-category, .timeline-item, .project-card').forEach(el => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(20px)';
-            el.style.transition = 'all 0.5s ease';
+        elements.forEach(element => {
+            element.style.opacity = '0';
+            element.style.transform = 'translateY(20px)';
+            element.style.transition = 'all 0.5s ease';
+            observer.observe(element);
         });
-        animateOnScroll();
     }
 
     // ========== Project Card Hover Effects ==========
@@ -212,20 +232,55 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ========== Dark Mode Toggle ==========
+    function initTheme() {
+        const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)');
+        const savedTheme = localStorage.getItem('theme');
+
+        if (savedTheme) {
+            document.body.classList.toggle('dark-mode', savedTheme === 'dark');
+        } else if (prefersDarkMode.matches) {
+            document.body.classList.add('dark-mode');
+        }
+        updateThemeToggleIcon();
+    }
+
+    function toggleTheme() {
+        document.body.classList.toggle('dark-mode');
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+        updateThemeToggleIcon();
+    }
+
+    function updateThemeToggleIcon() {
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        themeToggle.innerHTML = isDarkMode ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    }
+
+    themeToggle.addEventListener('click', toggleTheme);
+
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) { // Only auto-switch if no user preference is set
+            document.body.classList.toggle('dark-mode', e.matches);
+            updateThemeToggleIcon();
+        }
+    });
+
     // ========== Initialize Everything ==========
     function initPortfolio() {
+        initTheme(); // Initialize theme first
         initTypewriter();
-        initAnimations();
+        animateOnScrollObserver(); // Use the observer-based animation
         setupProjectCards();
         
         // Update current year in footer
-        const yearElement = document.querySelector('footer p:last-child');
-        if (yearElement) {
-            yearElement.textContent = `© ${new Date().getFullYear()} Abdullah. All rights reserved.`;
+        if (currentYearSpan) {
+            currentYearSpan.textContent = new Date().getFullYear();
         }
         
-        // Initialize EmailJS
-        emailjs.init('YOUR_USER_ID');
+        // Initialize EmailJS (replace with your actual user ID)
+        emailjs.init('user_YOUR_USER_ID'); 
     }
 
     // Event Listeners
@@ -233,12 +288,20 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('scroll', () => {
         handleHeaderScroll();
         setActiveLink();
-        animateOnScroll();
+        // animateOnScrollObserver is handled by IntersectionObserver
     });
 });
 
-// Custom Cursor Effect
+// Custom Cursor Effect (Optional - consider disabling for touch devices)
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if it's a touch device
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+
+    if (isTouchDevice) {
+        document.documentElement.style.cursor = 'auto'; // Revert to default cursor
+        return; // Exit if touch device
+    }
+
     const cursor = document.createElement('div');
     const cursorFollower = document.createElement('div');
     cursor.classList.add('cursor');
@@ -287,4 +350,4 @@ document.addEventListener('DOMContentLoaded', () => {
         cursor.classList.remove('active');
       });
     });
-  });
+});
